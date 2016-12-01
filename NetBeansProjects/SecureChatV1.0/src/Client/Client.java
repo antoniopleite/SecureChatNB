@@ -18,7 +18,7 @@ import java.security.spec.*;
 import java.util.Locale;
 import java.util.Random;
 import java.util.Scanner;
-
+//ok
 class Client {
 
     private static final String pass = "SIO";
