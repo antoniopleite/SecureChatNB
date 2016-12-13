@@ -1,8 +1,5 @@
 package Client;
 
-import Gui.Frame1;
-import Gui.RegisterForm;
-import Util.Constants;
 import com.dropbox.core.*;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -22,11 +19,10 @@ import java.util.Locale;
 import java.util.Random;
 import java.util.Scanner;
 import javax.swing.JFrame;
-//ok
 
 public class Client {
 
-    private static final String pass = "SIO";
+    private static final String pass1 = "SIO";
     private static String src = "";
     private static String dst = "";
     private static byte[] pKey;
@@ -39,10 +35,6 @@ public class Client {
         InputStream in;
         byte[] buffer = new byte[1024];
         int readBytes;
-        RegisterForm frame = new RegisterForm();
-        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.pack();
-        frame.setVisible(true);
         //Cliente com espera activa, comunicação feita por sockets
         try {
             s = new Socket("localhost", 1111);
@@ -57,14 +49,19 @@ public class Client {
                     byte[] bytesToEncrypt = new byte[l];
                     System.arraycopy(buffer, 0, bytesToEncrypt, 0, l);
                     byte[] encryptedBytes = null;
+                    byte[] cipheredMsg = null;
                     if (l == -1) {
                         break;
                     }
-                    if (frame.isPassword()) {
-                        encryptedBytes = encryptPassword(bytesToEncrypt);
-                    } else if (frame.isHibrida()) {
-//                    encryptedBytes = encryptP
-                    }
+                    //encryptedBytes = encryptPassword(bytesToEncrypt);
+
+                    //Cifrar simetricamente, passando a mensagem como argumento
+                    //encryptedBytes <--> cipheredMsg
+                    encryptedBytes = encryptSymmetric(bytesToEncrypt);
+                    //Cifrar chave assimetricamente, passando-a como argumento
+                    //cipheredMsg <--> encryptedBytes
+                    //cipheredMsg = encryptHybrid(cipheredMsg);
+
                     out.write(encryptedBytes, 0, encryptedBytes.length);
 
                 }
@@ -76,7 +73,9 @@ public class Client {
                     System.arraycopy(buffer, 0, bytesToDecrypt, 0, l);
                     byte[] decryptedBytes = null;
                     //Falta ter acesso ao json com o tipo de decifra a fazer
-                    decryptedBytes = decryptHybrid(bytesToDecrypt,a);
+                    //decryptedBytes = decryptPassword(bytesToDecrypt);
+                    decryptedBytes = decryptSymmetric(bytesToDecrypt);
+
                     JsonReader jr = new JsonReader(new InputStreamReader(new ByteArrayInputStream(decryptedBytes), "UTF-8"));
                     JsonParser parser = new JsonParser();
                     JsonElement data = parser.parse(jr);
@@ -92,90 +91,6 @@ public class Client {
         } catch (Exception e) {
             System.err.println("Exception: " + e);
         }
-    }
-
-    private static byte[] encryptPassword(byte[] buff) throws UnsupportedEncodingException, UnsupportedOperationException, InvalidKeySpecException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException, InvalidParameterSpecException, ProviderException, InvalidAlgorithmParameterException {
-
-        JsonReader jr = new JsonReader(new InputStreamReader(new ByteArrayInputStream(buff), "UTF-8"));
-        JsonParser parser = new JsonParser();
-        JsonElement data = parser.parse(jr);
-        byte[] bt = null;
-
-        if (data.isJsonObject()) {
-
-            JsonObject json = data.getAsJsonObject();
-
-            if (json.has("msg")) {
-
-                JsonElement cmd = json.get("msg");
-                String msg = cmd.getAsString();
-                cmd = json.get("dst");
-                dst = cmd.getAsString();
-
-                Random r = new SecureRandom();
-                byte[] salt = new byte[20];
-                r.nextBytes(salt);
-                char[] password = pass.toCharArray();
-
-                SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
-                KeySpec spec = new PBEKeySpec(password, salt, 65536, 128);
-                SecretKey tmp = factory.generateSecret(spec);
-                SecretKey secret = new SecretKeySpec(tmp.getEncoded(), "AES");
-
-                Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
-                cipher.init(Cipher.ENCRYPT_MODE, secret);
-                AlgorithmParameters params = cipher.getParameters();
-                byte[] iv = params.getParameterSpec(IvParameterSpec.class).getIV();
-                byte[] ciphertext = cipher.doFinal(msg.getBytes("UTF-8"));
-                byte[] secretArray = secret.getEncoded();
-
-                //encriptação da chave
-                //byte[] b = encryptPwd(secretArray);
-                String saltBase64 = Base64.encode(salt);
-                String cipherBase64 = Base64.encode(ciphertext);
-                String secretBase64 = Base64.encode(secretArray);
-                String ivBase64 = Base64.encode(iv);
-                json.remove("msg");
-                json.addProperty("msg", cipherBase64);
-                json.addProperty("key", secretBase64);
-                json.addProperty("iv", ivBase64);
-                json.addProperty("salt", saltBase64);
-                json.addProperty("type", 0);
-                bt = json.toString().getBytes();
-                return bt;
-            }
-        }
-        return buff;
-    }
-
-    private static byte[] decryptPassword(byte[] dados) throws UnsupportedEncodingException, UnsupportedOperationException, InvalidKeySpecException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException, InvalidParameterSpecException, ProviderException, InvalidAlgorithmParameterException {
-
-        JsonReader jr = new JsonReader(new InputStreamReader(new ByteArrayInputStream(dados), "UTF-8"));
-        JsonParser parser = new JsonParser();
-        JsonElement data = parser.parse(jr);
-        byte[] bt = null;
-
-        if (data.isJsonObject()) {
-            JsonObject json = data.getAsJsonObject();
-            if (json.has("msg")) {
-                JsonElement cmd = json.get("msg");
-                String msg = cmd.getAsString();
-                cmd = json.get("key");
-                String secret = cmd.getAsString();
-//                byte[] sk = decryptPwd(Base64.decode(secret));
-                cmd = json.get("iv");
-                String iv = cmd.getAsString();
-                SecretKeySpec sks = new SecretKeySpec(Base64.decode(secret), "AES");
-                Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
-                cipher.init(Cipher.DECRYPT_MODE, sks, new IvParameterSpec(Base64.decode(iv)));
-                String plaintext = new String(cipher.doFinal(Base64.decode(msg)), "UTF-8");
-                json.remove("msg");
-                json.addProperty("msg", plaintext);
-                bt = json.toString().getBytes();
-                return bt;
-            }
-        }
-        return dados;
     }
 
     private static void dropbox(String opt) throws IOException, DbxException {
@@ -226,7 +141,7 @@ public class Client {
         String nome = sc.next();
         JsonObject js = new JsonObject();
         js.addProperty("command", "register");
-        js.addProperty("src", Constants.userName);
+        js.addProperty("src", nome);
         byte[] bt = js.toString().getBytes();
         //  System.arraycopy(bt, 0, buffer, 0, bt.length);
         out.write(bt, 0, bt.length);
@@ -265,14 +180,13 @@ public class Client {
         PrivateKey privKey = keyPair.getPrivate();
         PublicKey pubKey = keyPair.getPublic();
         pKey = privKey.getEncoded();
-        
+
         //Generate symmetric key
-        KeyGenerator aesKeyGenerator = KeyGenerator.getInstance("AES"); 
-        SecureRandom random = new SecureRandom(); 
-        aesKeyGenerator.init(random);           
+        KeyGenerator aesKeyGenerator = KeyGenerator.getInstance("AES");
+        SecureRandom random = new SecureRandom();
+        aesKeyGenerator.init(random);
         SecretKey aesSecretKey = aesKeyGenerator.generateKey();
-        
-        
+
         FileOutputStream fos = new FileOutputStream("pubkey" + src);
         byte[] puKey = pubKey.getEncoded();
         fos.write(puKey);
@@ -280,7 +194,173 @@ public class Client {
         return aesSecretKey;
     }
 
-    private static byte[] encryptHybrid(byte[] b) {
+    private static byte[] encryptPassword(byte[] b) throws UnsupportedEncodingException, UnsupportedOperationException, InvalidKeySpecException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException, InvalidParameterSpecException, ProviderException, InvalidAlgorithmParameterException {
+
+        JsonReader jr = new JsonReader(new InputStreamReader(new ByteArrayInputStream(b), "UTF-8"));
+        JsonParser parser = new JsonParser();
+        JsonElement data = parser.parse(jr);
+        byte[] bt = null;
+
+        if (data.isJsonObject()) {
+
+            JsonObject json = data.getAsJsonObject();
+
+            if (json.has("msg")) {
+
+                JsonElement cmd = json.get("msg");
+                String msg = cmd.getAsString();
+                cmd = json.get("dst");
+                dst = cmd.getAsString();
+
+                Random r = new SecureRandom();
+                byte[] salt = new byte[20];
+                r.nextBytes(salt);
+                char[] password = pass1.toCharArray();
+
+                SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
+                KeySpec spec = new PBEKeySpec(password, salt, 65536, 128);
+                SecretKey tmp = factory.generateSecret(spec);
+                SecretKey secret = new SecretKeySpec(tmp.getEncoded(), "AES");
+
+                Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+                cipher.init(Cipher.ENCRYPT_MODE, secret);
+                AlgorithmParameters params = cipher.getParameters();
+                byte[] iv = params.getParameterSpec(IvParameterSpec.class).getIV();
+                byte[] ciphertext = cipher.doFinal(msg.getBytes("UTF-8"));
+                byte[] secretArray = secret.getEncoded();
+
+                //encriptação da chave
+                //byte[] b = encryptPwd(secretArray);
+                String saltBase64 = Base64.encode(salt);
+                String cipherBase64 = Base64.encode(ciphertext);
+                String secretBase64 = Base64.encode(secretArray);
+                String ivBase64 = Base64.encode(iv);
+                json.remove("msg");
+                json.addProperty("msg", cipherBase64);
+                json.addProperty("key", secretBase64);
+                json.addProperty("iv", ivBase64);
+                json.addProperty("salt", saltBase64);
+                json.addProperty("type", 0);
+                bt = json.toString().getBytes();
+                return bt;
+            }
+        }
+        return b;
+    }
+
+    private static byte[] decryptPassword(byte[] b) throws UnsupportedEncodingException, UnsupportedOperationException, InvalidKeySpecException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException, InvalidParameterSpecException, ProviderException, InvalidAlgorithmParameterException {
+
+        JsonReader jr = new JsonReader(new InputStreamReader(new ByteArrayInputStream(b), "UTF-8"));
+        JsonParser parser = new JsonParser();
+        JsonElement data = parser.parse(jr);
+        byte[] bt = null;
+
+        if (data.isJsonObject()) {
+            JsonObject json = data.getAsJsonObject();
+            if (json.has("msg")) {
+                JsonElement cmd = json.get("msg");
+                String msg = cmd.getAsString();
+                cmd = json.get("iv");
+
+                String iv = cmd.getAsString();
+                cmd = json.get("salt");
+                String saltEnc = cmd.getAsString();
+                byte[] saltDec = Base64.decode(saltEnc);
+                SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
+                char[] password = pass1.toCharArray();
+                KeySpec spec = new PBEKeySpec(password, saltDec, 65536, 128);
+                SecretKey tmp = factory.generateSecret(spec);
+                SecretKey secret = new SecretKeySpec(tmp.getEncoded(), "AES");
+
+//                SecretKeySpec sks = new SecretKeySpec(Base64.decode(secret), "AES");
+                Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+                cipher.init(Cipher.DECRYPT_MODE, secret, new IvParameterSpec(Base64.decode(iv)));
+                String plaintext = new String(cipher.doFinal(Base64.decode(msg)), "UTF-8");
+                json.remove("msg");
+                json.addProperty("msg", plaintext);
+                bt = json.toString().getBytes();
+                return bt;
+            }
+        }
+        return b;
+    }
+
+    private static byte[] encryptSymmetric(byte b[]) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, InvalidParameterSpecException, UnsupportedEncodingException, IllegalBlockSizeException, BadPaddingException {
+        JsonReader jr = new JsonReader(new InputStreamReader(new ByteArrayInputStream(b), "UTF-8"));
+        JsonParser parser = new JsonParser();
+        JsonElement data = parser.parse(jr);
+        byte[] bt = null;
+        byte[] secretArray = null;
+        byte[] ciphertext = null;
+        if (data.isJsonObject()) {
+            JsonObject json = data.getAsJsonObject();
+            if (json.has("msg")) {
+
+                //Tratamento dos dados json
+                JsonElement cmd = json.get("msg");
+                String msg = cmd.getAsString();
+
+                //Cifra simetrica
+                Key secret = KeyGenerator.getInstance("AES").generateKey();
+                Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+                cipher.init(Cipher.ENCRYPT_MODE, secret);
+                AlgorithmParameters params = cipher.getParameters();
+                byte[] iv = params.getParameterSpec(IvParameterSpec.class).getIV();
+                ciphertext = cipher.doFinal(msg.getBytes("UTF-8"));
+
+                //Preenchimento do JsonObject
+                secretArray = secret.getEncoded();
+                String secretString = Base64.encode(secretArray);
+                String ivString = Base64.encode(iv);
+                String msgString = Base64.encode(ciphertext);
+                json.addProperty("iv", ivString);
+                json.addProperty("key", secretString);
+                json.addProperty("msg", msgString);
+                bt = json.toString().getBytes();
+
+                return bt;
+            }
+        }
+        return b;
+    }
+
+    private static byte[] decryptSymmetric(byte[] b) throws UnsupportedEncodingException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, InvalidAlgorithmParameterException, IllegalBlockSizeException, BadPaddingException {
+        JsonReader jr = new JsonReader(new InputStreamReader(new ByteArrayInputStream(b), "UTF-8"));
+        JsonParser parser = new JsonParser();
+        JsonElement data = parser.parse(jr);
+        byte[] bt = null;
+
+        if (data.isJsonObject()) {
+            JsonObject json = data.getAsJsonObject();
+            if (json.has("msg")) {
+
+                //Tratamento do objecto Json
+                JsonElement cmd = json.get("msg");
+                String msgString = cmd.getAsString();
+                byte[] msg = Base64.decode(msgString);
+                cmd = json.get("iv");
+                String ivString = cmd.getAsString();
+                byte[] iv = Base64.decode(ivString);
+                cmd = json.get("key");
+
+                //Preenchimento do JsonObject
+                String secretString = cmd.getAsString();
+                byte[] secretArray = Base64.decode(secretString);
+                SecretKey secret = new SecretKeySpec(secretArray, 0, secretArray.length, "AES");
+                Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+                cipher.init(Cipher.DECRYPT_MODE, secret, new IvParameterSpec(iv));
+                String plaintext = new String(cipher.doFinal(msg));
+                json.remove("msg");
+                json.addProperty("msg", plaintext);
+                bt = json.toString().getBytes();
+
+                return bt;
+            }
+        }
+        return b;
+    }
+
+    private static byte[] encryptHybrid(byte[] key) throws IllegalBlockSizeException, BadPaddingException {
         //ir a dropbox buscar a public key
         try {
             dropbox("download");
@@ -292,20 +372,21 @@ public class Client {
             byte[] f = new byte[fis.available()];
             fis.read(f);
             fis.close();
+
             KeyFactory kf = KeyFactory.getInstance("RSA");
             X509EncodedKeySpec keySpec = new X509EncodedKeySpec(f);
             PublicKey pubK = kf.generatePublic(keySpec);
             Cipher cipher = Cipher.getInstance("RSA");
             cipher.init(Cipher.ENCRYPT_MODE, pubK);
-            byte[] criptogram = cipher.doFinal(b);
+            byte[] criptogram = cipher.doFinal(key);
             return criptogram;
-        } catch (InvalidKeySpecException | NoSuchPaddingException | IllegalBlockSizeException | BadPaddingException | InvalidKeyException | NoSuchAlgorithmException | IOException e) {
+        } catch (InvalidKeySpecException | NoSuchPaddingException | InvalidKeyException | NoSuchAlgorithmException | IOException e) {
             e.printStackTrace();
         }
         return null;
     }
 
-    private static byte[] decryptHybrid(byte[] b,SecretKey a) {
+    private static byte[] decryptHybrid(byte[] b, SecretKey a) {
         try {
             byte[] tempSecret = new byte[256];
             System.arraycopy(b, 0, tempSecret, 0, b.length);
