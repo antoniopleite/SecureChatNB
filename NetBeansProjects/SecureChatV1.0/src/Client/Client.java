@@ -57,11 +57,14 @@ public class Client {
 
                     //Cifrar simetricamente, passando a mensagem como argumento
                     //encryptedBytes <--> cipheredMsg
-                    encryptedBytes = encryptSymmetric(bytesToEncrypt);
+                    cipheredMsg = encryptSymmetric(bytesToEncrypt);
                     //Cifrar chave assimetricamente, passando-a como argumento
                     //cipheredMsg <--> encryptedBytes
-                    //cipheredMsg = encryptHybrid(cipheredMsg);
-
+                    String encryptedmsg = Base64.encode(cipheredMsg);
+                    System.out.println("cipheredMsg --> " + encryptedmsg);
+                    encryptedBytes = encryptHybrid(cipheredMsg);
+                    String encrypted = Base64.encode(encryptedBytes);
+                    System.out.println("encryptedBytes --> " + encrypted);
                     out.write(encryptedBytes, 0, encryptedBytes.length);
 
                 }
@@ -72,10 +75,15 @@ public class Client {
                     byte[] bytesToDecrypt = new byte[l];
                     System.arraycopy(buffer, 0, bytesToDecrypt, 0, l);
                     byte[] decryptedBytes = null;
+                    byte[] cipheredMsg = null;
                     //Falta ter acesso ao json com o tipo de decifra a fazer
                     //decryptedBytes = decryptPassword(bytesToDecrypt);
-                    decryptedBytes = decryptSymmetric(bytesToDecrypt);
-
+                    System.out.println(Base64.encode(buffer));
+                    System.out.println("Aqui");
+                    cipheredMsg = decryptHybrid(bytesToDecrypt);
+                    System.out.println("Ja chego");
+                    decryptedBytes = decryptSymmetric(cipheredMsg);
+                    System.out.println("Acabou");
                     JsonReader jr = new JsonReader(new InputStreamReader(new ByteArrayInputStream(decryptedBytes), "UTF-8"));
                     JsonParser parser = new JsonParser();
                     JsonElement data = parser.parse(jr);
@@ -333,7 +341,7 @@ public class Client {
         if (data.isJsonObject()) {
             JsonObject json = data.getAsJsonObject();
             if (json.has("msg")) {
-
+                
                 //Tratamento do objecto Json
                 JsonElement cmd = json.get("msg");
                 String msgString = cmd.getAsString();
@@ -360,44 +368,75 @@ public class Client {
         return b;
     }
 
-    private static byte[] encryptHybrid(byte[] key) throws IllegalBlockSizeException, BadPaddingException {
+    private static byte[] encryptHybrid(byte[] b) throws IllegalBlockSizeException, BadPaddingException, UnsupportedEncodingException, InvalidKeyException, FileNotFoundException, IOException, NoSuchAlgorithmException, InvalidKeySpecException, NoSuchPaddingException {
         //ir a dropbox buscar a public key
-        try {
-            dropbox("download");
-        } catch (IOException | DbxException e) {
-            e.printStackTrace();
-        }
-        try {
-            FileInputStream fis = new FileInputStream("pubkey" + dst);
-            byte[] f = new byte[fis.available()];
-            fis.read(f);
-            fis.close();
 
-            KeyFactory kf = KeyFactory.getInstance("RSA");
-            X509EncodedKeySpec keySpec = new X509EncodedKeySpec(f);
-            PublicKey pubK = kf.generatePublic(keySpec);
-            Cipher cipher = Cipher.getInstance("RSA");
-            cipher.init(Cipher.ENCRYPT_MODE, pubK);
-            byte[] criptogram = cipher.doFinal(key);
-            return criptogram;
-        } catch (InvalidKeySpecException | NoSuchPaddingException | InvalidKeyException | NoSuchAlgorithmException | IOException e) {
-            e.printStackTrace();
+        JsonReader jr = new JsonReader(new InputStreamReader(new ByteArrayInputStream(b), "UTF-8"));
+        JsonParser parser = new JsonParser();
+        JsonElement data = parser.parse(jr);
+        byte[] bt = null;
+        if (data.isJsonObject()) {
+            JsonObject json = data.getAsJsonObject();
+            if (json.has("msg")) {
+
+                //Tratamento do objecto Json
+                JsonElement cmd = json.get("key");
+                String keyString = cmd.getAsString();
+                cmd = json.get("dst");
+                dst = cmd.getAsString();
+                byte[] key = Base64.decode(keyString);
+                FileInputStream fis = new FileInputStream("pubkey" + dst);
+                byte[] f = new byte[fis.available()];
+                fis.read(f);
+                fis.close();
+                KeyFactory kf = KeyFactory.getInstance("RSA");
+                X509EncodedKeySpec keySpec = new X509EncodedKeySpec(f);
+                PublicKey pubK = kf.generatePublic(keySpec);
+                Cipher cipher = Cipher.getInstance("RSA");
+                cipher.init(Cipher.ENCRYPT_MODE, pubK);
+
+                byte[] cipheredKey = cipher.doFinal(key);
+                String cipheredkeyString = Base64.encode(cipheredKey);
+                json.remove("key");
+                json.addProperty("key", cipheredkeyString);
+
+                bt = json.toString().getBytes();
+                return bt;
+            }
+            try {
+                dropbox("download");
+            } catch (IOException | DbxException e) {
+                e.printStackTrace();
+            }
         }
-        return null;
+        return b;
     }
 
-    private static byte[] decryptHybrid(byte[] b, SecretKey a) {
-        try {
-            byte[] tempSecret = new byte[256];
-            System.arraycopy(b, 0, tempSecret, 0, b.length);
-            KeyFactory kf = KeyFactory.getInstance("RSA");
-            PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(pKey);
-            PrivateKey pk = kf.generatePrivate(spec);
-            Cipher cifra = Cipher.getInstance("RSA");
-            cifra.init(Cipher.DECRYPT_MODE, pk);
-            return cifra.doFinal(tempSecret);
-        } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeySpecException | InvalidKeyException | BadPaddingException | IllegalBlockSizeException e) {
-            e.printStackTrace();
+    private static byte[] decryptHybrid(byte[] b) throws InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeySpecException, IllegalBlockSizeException, BadPaddingException, UnsupportedEncodingException {
+        JsonReader jr = new JsonReader(new InputStreamReader(new ByteArrayInputStream(b), "UTF-8"));
+        JsonParser parser = new JsonParser();
+        JsonElement data = parser.parse(jr);
+        byte[] bt = null;
+        if (data.isJsonObject()) {
+            JsonObject json = data.getAsJsonObject();
+            if (json.has("msg")) {
+                JsonElement cmd = json.get("key");
+                String keyString = cmd.getAsString();
+                byte[] key = Base64.decode(keyString);
+//                byte[] tempSecret = new byte[256];
+//                System.arraycopy(b, 0, tempSecret, 0, b.length);
+                KeyFactory kf = KeyFactory.getInstance("RSA");
+                PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(pKey);
+                PrivateKey pk = kf.generatePrivate(spec);
+                Cipher cifra = Cipher.getInstance("RSA");
+                cifra.init(Cipher.DECRYPT_MODE, pk);
+                byte[] decipheredKey = cifra.doFinal(key);
+                keyString = Base64.encode(decipheredKey);
+                json.remove("key");
+                json.addProperty("key", keyString);
+                bt = json.toString().getBytes();
+                return bt;
+            }
         }
         return null;
     }
