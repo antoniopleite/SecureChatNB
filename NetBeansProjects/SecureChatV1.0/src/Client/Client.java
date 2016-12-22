@@ -12,23 +12,26 @@ import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.*;
+import java.math.BigInteger;
 import java.net.Socket;
 import java.security.*;
 import java.security.spec.*;
 import java.util.Locale;
 import java.util.Random;
 import java.util.Scanner;
-import javax.swing.JFrame;
+import javax.crypto.spec.DHParameterSpec;
 
 public class Client {
 
+    private static final BigInteger g = new BigInteger("1234567890", 16);
+    private static final BigInteger p = new BigInteger("1234567890", 16);
     private static final String pass1 = "SIO";
     private static String src = "";
     private static String dst = "";
     private static byte[] pKey;
     private static byte[] puKey;
 
-    @SuppressWarnings("empty-statement")
+    @SuppressWarnings({"empty-statement", "static-access", "UseSpecificCatch"})
     public static void main(String[] args) throws IOException, DbxException {
         Socket s;
         OutputStream out;
@@ -48,23 +51,19 @@ public class Client {
                     l = System.in.read(buffer);
                     byte[] bytesToEncrypt = new byte[l];
                     System.arraycopy(buffer, 0, bytesToEncrypt, 0, l);
+                    @SuppressWarnings("UnusedAssignment")
                     byte[] encryptedBytes = null;
+                    @SuppressWarnings("UnusedAssignment")
                     byte[] cipheredMsg = null;
                     if (l == -1) {
                         break;
                     }
                     //encryptedBytes = encryptPassword(bytesToEncrypt);
 
-                    //Cifrar simetricamente, passando a mensagem como argumento
-                    //encryptedBytes <--> cipheredMsg
+                    ////Cifrar simetricamente, passando a mensagem como argumento
                     cipheredMsg = encryptSymmetric(bytesToEncrypt);
-                    //Cifrar chave assimetricamente, passando-a como argumento
-                    //cipheredMsg <--> encryptedBytes
-                    String encryptedmsg = Base64.encode(cipheredMsg);
-                    System.out.println("cipheredMsg --> " + encryptedmsg);
+                    ////Cifrar chave assimetricamente, passando-a como argumento
                     encryptedBytes = encryptHybrid(cipheredMsg);
-                    String encrypted = Base64.encode(encryptedBytes);
-                    System.out.println("encryptedBytes --> " + encrypted);
                     out.write(encryptedBytes, 0, encryptedBytes.length);
 
                 }
@@ -74,16 +73,13 @@ public class Client {
                     l = in.read(buffer, 0, buffer.length);
                     byte[] bytesToDecrypt = new byte[l];
                     System.arraycopy(buffer, 0, bytesToDecrypt, 0, l);
+                    @SuppressWarnings("UnusedAssignment")
                     byte[] decryptedBytes = null;
+                    @SuppressWarnings("UnusedAssignment")
                     byte[] cipheredMsg = null;
                     //Falta ter acesso ao json com o tipo de decifra a fazer
-                    //decryptedBytes = decryptPassword(bytesToDecrypt);
-                    System.out.println(Base64.encode(buffer));
-                    System.out.println("Aqui");
                     cipheredMsg = decryptHybrid(bytesToDecrypt);
-                    System.out.println("Ja chego");
                     decryptedBytes = decryptSymmetric(cipheredMsg);
-                    System.out.println("Acabou");
                     JsonReader jr = new JsonReader(new InputStreamReader(new ByteArrayInputStream(decryptedBytes), "UTF-8"));
                     JsonParser parser = new JsonParser();
                     JsonElement data = parser.parse(jr);
@@ -101,6 +97,7 @@ public class Client {
         }
     }
 
+    @SuppressWarnings("ConvertToTryWithResources")
     private static void dropbox(String opt) throws IOException, DbxException {
         //Api Dropbox para guardar ficheiros das public keys
         final String APP_KEY = "9vbj3zxu7k908vu";
@@ -169,7 +166,6 @@ public class Client {
                         secret = generateKeyPair();
                         dropbox("upload");
                     } catch (NoSuchAlgorithmException | DbxException e) {
-                        e.printStackTrace();
                     }
                     break;
                 } else {
@@ -196,6 +192,7 @@ public class Client {
         SecretKey aesSecretKey = aesKeyGenerator.generateKey();
 
         FileOutputStream fos = new FileOutputStream("pubkey" + src);
+        @SuppressWarnings("LocalVariableHidesMemberVariable")
         byte[] puKey = pubKey.getEncoded();
         fos.write(puKey);
         fos.close();
@@ -207,6 +204,7 @@ public class Client {
         JsonReader jr = new JsonReader(new InputStreamReader(new ByteArrayInputStream(b), "UTF-8"));
         JsonParser parser = new JsonParser();
         JsonElement data = parser.parse(jr);
+        @SuppressWarnings("UnusedAssignment")
         byte[] bt = null;
 
         if (data.isJsonObject()) {
@@ -261,6 +259,7 @@ public class Client {
         JsonReader jr = new JsonReader(new InputStreamReader(new ByteArrayInputStream(b), "UTF-8"));
         JsonParser parser = new JsonParser();
         JsonElement data = parser.parse(jr);
+        @SuppressWarnings("UnusedAssignment")
         byte[] bt = null;
 
         if (data.isJsonObject()) {
@@ -297,8 +296,11 @@ public class Client {
         JsonReader jr = new JsonReader(new InputStreamReader(new ByteArrayInputStream(b), "UTF-8"));
         JsonParser parser = new JsonParser();
         JsonElement data = parser.parse(jr);
+        @SuppressWarnings("UnusedAssignment")
         byte[] bt = null;
+        @SuppressWarnings("UnusedAssignment")
         byte[] secretArray = null;
+        @SuppressWarnings("UnusedAssignment")
         byte[] ciphertext = null;
         if (data.isJsonObject()) {
             JsonObject json = data.getAsJsonObject();
@@ -336,12 +338,13 @@ public class Client {
         JsonReader jr = new JsonReader(new InputStreamReader(new ByteArrayInputStream(b), "UTF-8"));
         JsonParser parser = new JsonParser();
         JsonElement data = parser.parse(jr);
+        @SuppressWarnings("UnusedAssignment")
         byte[] bt = null;
 
         if (data.isJsonObject()) {
             JsonObject json = data.getAsJsonObject();
             if (json.has("msg")) {
-                
+
                 //Tratamento do objecto Json
                 JsonElement cmd = json.get("msg");
                 String msgString = cmd.getAsString();
@@ -374,6 +377,7 @@ public class Client {
         JsonReader jr = new JsonReader(new InputStreamReader(new ByteArrayInputStream(b), "UTF-8"));
         JsonParser parser = new JsonParser();
         JsonElement data = parser.parse(jr);
+        @SuppressWarnings("UnusedAssignment")
         byte[] bt = null;
         if (data.isJsonObject()) {
             JsonObject json = data.getAsJsonObject();
@@ -406,7 +410,6 @@ public class Client {
             try {
                 dropbox("download");
             } catch (IOException | DbxException e) {
-                e.printStackTrace();
             }
         }
         return b;
@@ -416,6 +419,7 @@ public class Client {
         JsonReader jr = new JsonReader(new InputStreamReader(new ByteArrayInputStream(b), "UTF-8"));
         JsonParser parser = new JsonParser();
         JsonElement data = parser.parse(jr);
+        @SuppressWarnings("UnusedAssignment")
         byte[] bt = null;
         if (data.isJsonObject()) {
             JsonObject json = data.getAsJsonObject();
@@ -438,6 +442,29 @@ public class Client {
                 return bt;
             }
         }
-        return null;
+        return b;
+    }
+
+    private void diffieEncrypt() throws NoSuchAlgorithmException, NoSuchProviderException, InvalidAlgorithmParameterException, InvalidKeyException {
+        DHParameterSpec dhParams = new DHParameterSpec(g, p);
+        KeyPairGenerator user1keyGen = KeyPairGenerator.getInstance("DH", "BC");
+        user1keyGen.initialize(dhParams, new SecureRandom());
+        KeyAgreement user1KeyAgree = KeyAgreement.getInstance("DH", "BC");
+        KeyPair user1Pair = user1keyGen.generateKeyPair();
+        user1KeyAgree.init(user1Pair.getPrivate());
+
+        KeyPairGenerator user2keyGen = KeyPairGenerator.getInstance("DH", "BC");
+        user1keyGen.initialize(dhParams, new SecureRandom());
+        KeyAgreement user2KeyAgree = KeyAgreement.getInstance("DH", "BC");
+        KeyPair user2Pair = user2keyGen.generateKeyPair();
+        user1KeyAgree.init(user2Pair.getPrivate());
+
+        Key user1Key = user1KeyAgree.doPhase(user2Pair.getPublic(), true);
+        Key user2Key = user2KeyAgree.doPhase(user1Pair.getPublic(), true);
+
+        MessageDigest hash = MessageDigest.getInstance("SHA1", "BC");
+
+        byte[] user1SharedSecret = hash.digest(user1KeyAgree.generateSecret());
+        byte[] user2SharedSecret = hash.digest(user2KeyAgree.generateSecret());
     }
 }
